@@ -1,0 +1,127 @@
+Draft MAP and stakeholder RACI — next steps for Avery Software
+
+From: Vanessa Ortiz <vanessa.ortiz@redwood.ai>
+To: Carla Mendes <carla.mendes@averysw.com>, Avery Procurement <procurement@averysw.com>
+Cc: marcus.lin@redwood.ai, ben.carter@redwood.ai
+Date: 2026-08-22T15:02:00-07:00
+Subject: Draft MAP and stakeholder RACI — next steps for Avery Software
+
+Hi Carla / team —
+
+Thanks again for taking the time today. Quick recap and the first-cut Mutual Action Plan (attached) for your review. I pulled the milestones you called out on the call into a timeline and added dependencies and owners where we could. Please review and confirm or correct the RACI (economic buyer, security owner, legal owner, engineering lead) so we can lock dates and book the next touchpoints.
+
+Summary (high level):
+- Target close: mid-October (placeholder: 2026-10-15)
+- Key milestones:
+  • Security questionnaire review — 2 weeks — dependency: InfoSec evidence from Avery
+  • Trial / pilot environment standing up — 3 weeks — dependency: infra access (VPC peering)
+  • Procurement / terms review — 1–2 weeks after pilot results
+  • Executive review & sign-off — 1 week
+- Current ask: Confirm who owns these roles on your side so we can mark R/A/C/I in the MAP.
+
+Draft RACI fields that need confirmation from Avery (please reply inline):
+- Economic buyer (decision authority on budget)
+- Security owner (will validate SOC/architecture and evidence)
+- Legal owner (contract/review)
+- Engineering lead (technical contact for integration and pilot)
+
+Attachments: 20260822_MAP_Avery-v1.xlsx (draft MAP)
+
+Next steps I propose:
+1) You confirm stakeholders for RACI by EOD 08/23
+2) Redwood to update the MAP and share v2
+3) Schedule 30-min technical kickoff (Marcus & Ben to join) for week of 08/30
+
+If you prefer, I can send the MAP as a shared Google Sheet instead of an XLSX.
+
+Thanks,
+Vanessa Ortiz
+Account Executive | Redwood Inference
+vanessa.ortiz@redwood.ai | +1 (650) 555-0186
+
+From: Carla Mendes <carla.mendes@averysw.com>
+To: Vanessa Ortiz <vanessa.ortiz@redwood.ai>
+Cc: Avery Procurement <procurement@averysw.com>
+Date: 2026-08-22T17:08:00-07:00
+Subject: Re: Draft MAP and stakeholder RACI — next steps for Avery Software
+
+Thanks Vanessa — appreciate the clear recap and the draft MAP. I confirmed roles internally; see below. I'll loop legal once we finalize the milestone dates.
+
+Confirming Avery stakeholders (for your RACI table):
+- Economic buyer: Evan Rhodes <evan.rhodes@averysw.com> — VP, Product (budget owner)
+- Security owner: Priya Natarajan <priya.natarajan@averysw.com> — Sr. InfoSec Manager
+- Legal owner: procurement@averysw.com (we'll route contract redlines through procurement and they will involve legal counsel as needed)
+- Engineering lead: Jordan Blake <jordan.blake@averysw.com> — Principal Engineer
+
+We have an internal availability window for a technical kickoff week of 08/30–09/03; prefer 08/31 in the morning PT. Also, we can provide the initial SOC2 summary and network diagrams after the kickoff — will share as attachments to procurement.
+
+On Aug 22, 2026, at 3:02 PM, Vanessa Ortiz <vanessa.ortiz@redwood.ai> wrote:
+> Hi Carla / team —
+> 
+> Thanks again for taking the time today. Quick recap and the first-cut Mutual Action Plan (attached) for your review.
+
+Best,
+Carla
+
+From: Ben Carter <ben.carter@redwood.ai>
+To: vanessa.ortiz@redwood.ai, marcus.lin@redwood.ai
+Date: 2026-08-23T09:15:00-07:00
+Subject: Re: Draft MAP and stakeholder RACI — internal proposed owners
+
+Internal note — proposing Redwood-side owners to align on the MAP and support the pilot: 
+- Redwood Sales lead / customer success engagement: Vanessa Ortiz (owner of deal)
+- Solutions engineering / technical kickoff: Marcus Lin (SE lead)
+- Pilot delivery & infra support: Ben Carter (SE delivery)
+- Legal / contracts escalation: Laura Bennett (Senior Contracts Manager)
+
+I also added a short column in the MAP (v2) indicating our primary point-of-contact and a backup. Recommend we include the following actions before the kickoff:
+- Marcus: prepare pilot runbook and infra checklist
+- Ben: pre-check network connectivity requirements and share sample IAM roles
+- Laura: draft procurement timeline + SOW template ready for signature after pilot
+
+I'll attach my checklist and a compressed timeline to the MAP v2.
+
+—Ben
+Solutions Engineer | Redwood Inference
+
+From: Vanessa Ortiz <vanessa.ortiz@redwood.ai>
+To: Carla Mendes <carla.mendes@averysw.com>, Avery Procurement <procurement@averysw.com>, Evan Rhodes <evan.rhodes@averysw.com>, Jordan Blake <jordan.blake@averysw.com>
+Cc: marcus.lin@redwood.ai, ben.carter@redwood.ai, laura.bennett@redwood.ai
+Date: 2026-08-24T09:14:00-07:00
+Subject: Confirmed RACI + updated MAP (v2) — technical kickoff 08/31
+
+Carla / team —
+
+Thanks for the quick confirmation of roles. I attached an updated MAP (v2) that reflects the RACI you provided and the Redwood internal owners Ben proposed. Key points below and next steps.
+
+Confirmed stakeholder RACI (Avery / Redwood):
+- Economic buyer (Avery): Evan Rhodes — VP, Product (Avery) — Role: Approve budget and final sign-off
+- Security owner (Avery): Priya Natarajan — Sr. InfoSec Manager (Avery) — Role: Approve SOC/architecture evidence
+- Legal owner (Avery): procurement@averysw.com — Role: Contract review and redlines
+- Engineering lead (Avery): Jordan Blake — Principal Engineer (Avery) — Role: Technical integration lead
+- Redwood lead: Vanessa Ortiz — deal owner / exec coordinator
+- Redwood SE lead: Marcus Lin — technical kickoff & pilot owner
+- Redwood delivery: Ben Carter — pilot delivery and infra checks
+- Redwood contracts: Laura Bennett — procurement / SOW owner
+
+Updated milestones and target dates (in MAP v2):
+- Security questionnaire returned by Avery: target 2026-09-07
+- Pilot environment ready: target 2026-09-14 (depends on VPC peering and IAM access)
+- Pilot evaluation complete: target 2026-09-28
+- Procurement / terms finalized & sign: target 2026-10-15 (target close)
+
+Technical kickoff: Confirmed for 08/31 at 10:00 AM PT — invite sent separately. Marcus and Ben will lead the session and Jordan if available.
+
+Action items:
+1) Carla / procurement: please share the SOC summary + network diagram after the kickoff (attachment to procurement email).
+2) Vanessa / Redwood: share DocuSign for SOW once pilot completes and controls are validated (DocuSign link: https://docusign.com/s/abcdefg).
+3) Both teams: update MAP v2 in the hubspot deal and keep the dates current: https://app.hubspot.com/deal/1234567
+
+Attachments: 20260824_MAP_Avery-v2.xlsx, SOW_template_v2.pdf
+
+If anything above needs to change, reply all and we'll update the MAP. Looking forward to the kickoff.
+
+Thanks,
+Vanessa Ortiz
+Account Executive | Redwood Inference
+vanessa.ortiz@redwood.ai | +1 (650) 555-0186

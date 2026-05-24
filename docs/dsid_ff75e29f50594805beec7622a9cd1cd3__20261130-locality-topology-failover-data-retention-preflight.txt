@@ -1,0 +1,132 @@
+Kubernetes locality/topology & data-retention preflight — IronForge private cluster
+
+From: Samir Patel <samir.patel@ironforge.com>
+To: lauren_bishop <lauren.bishop@redwood.ai>, marissa_cole <marissa.cole@redwood.ai>
+Cc: Grace Hsu <grace.hsu@ironforge.com>
+Date: Mon, 30 Nov 2026 09:12:00 -0800
+Subject: Kubernetes locality/topology & retention preflight — IronForge private cluster
+
+Hey Lauren / Marissa —
+
+Thanks again for the booth conversation at KubeCon. We're moving toward a private cluster (VPC + on-prem nodes) for our inference workload and want a short preflight review with Redwood before we sign the SOW. High level requirements: 
+
+- Target footprint: 12 production GPU nodes (A100-class), 6 staging CPU-only nodes.
+- Network: dual ToR switches, cross-rack L2 adjacency in two failure domains (rack-a / rack-b).
+- Storage: mix of NVMe local (ephemeral) for inference cache + replicated blockstore for model artifacts and checkpoints. Expect ~120TB of persistent data.
+- RPO/RTO: data snapshots daily (RPO 24h), RTO target 2 hours for model-serving state in a rack-failure scenario.
+- Telemetry: we need token-level latency traces and per-node GPU telemetry forwarded to our Prometheus/Tempo endpoints.
+- Compliance: 3-year retention for audit logs; retention windows for model artifacts differ (30d hot, 365d cold).
+
+Can Redwood share a concise checklist (node pools, storage classes, PV-binding strategy, recommended taints/labels, and a suggested failover topology)? Also curious about recommended eviction handling for large KV caches (we use prefix caching). Attached: ironforge-site-inventory.csv and a basic network-diagram.pdf.
+
+Would like a 30–45 minute call this week to align and document decisions.
+
+Thanks,
+Samir
+Samir Patel
+Head of Infrastructure — IronForge Systems
++1 415 555 0142
+
+From: lauren_bishop <lauren.bishop@redwood.ai>
+To: Samir Patel <samir.patel@ironforge.com>
+Cc: marissa_cole <marissa.cole@redwood.ai>, karthik_iyer <karthik.iyer@redwood.ai>, neha_kapoor <neha.kapoor@redwood.ai>
+Date: Mon, 30 Nov 2026 11:03:00 -08:00
+Subject: Re: Kubernetes locality/topology & retention preflight — IronForge private cluster
+
+Samir —
+
+Great summary — we can absolutely get you a focused preflight checklist and a proposed topology. Quick thoughts before the call so we can use the time efficiently:
+
+- Node pools: separate GPU node pool (tainted: node-role.kubernetes.io/gpu:NoSchedule) and a CPU pool for control-plane adjacent jobs. Recommend a small infra pool (2 nodes) for observability collectors (prometheus/pushgateway) running on non-GPU hardware.
+- Storage classes: local-ssd for ephemeral KV cache (ReadWriteOnce, local volume), and a replicated blockstore (ReadWriteMany via iSCSI/Ceph or our recommended S3-backed CSI) for model artifacts.
+- PV binding: use volumeBindingMode: WaitForFirstConsumer + topology-aware storage class to ensure placements in the same failure domain as pods.
+- Retention + backups: daily snapshot job and a cross-rack replication job for model artifacts to meet the 24h RPO. For 3-year audit logs, recommend dedicated object lifecycle policies to move older logs to cold storage.
+- Telemetry: we'll provide a small agent image that ships token-level latency traces to your Tempo endpoint; plan for TLS/SASL and RBAC service accounts.
+
+I've attached a short redwood-preflight-checklist.md (draft). Can we do Wed 11/2 10:30am PT for a 45-min run-through? If that works, I'll invite the right folks.
+
+Action items I plan to cover on the call:
+- Validate network VLANs / egress rules for model downloads
+- Agree on nodepool sizes and autoscaling boundaries
+- Agree on PV classes and snapshot cadence
+- Confirm telemetry endpoint details and retention expectations
+
+Cheers,
+Lauren Bishop
+Director, Private Deployments — Redwood Inference
+
+From: karthik_iyer <karthik.iyer@redwood.ai>
+To: lauren_bishop <lauren.bishop@redwood.ai>, Samir Patel <samir.patel@ironforge.com>
+Cc: marissa_cole <marissa.cole@redwood.ai>, neha_kapoor <neha.kapoor@redwood.ai>
+Date: Mon, 30 Nov 2026 13:18:00 -08:00
+Subject: Re: Kubernetes locality/topology & retention preflight — IronForge private cluster
+
+Samir/Team —
+
+A few technical points to surface before the call that often impact node/storage choices:
+
+1) Locality & failure domains
+- Prefer node labels of the form: topology.kubernetes.io/zone and topology.kubernetes.io/rack. Use PodTopologySpreadConstraints to distribute replicas across rack boundaries.
+- For RTO ~2h in a single rack-failure, plan for at least a cross-rack warm cache strategy: keep a % of KV cache checkpoints replicated to the other rack every 30–60 minutes (async) so warm-up time is bounded.
+
+2) PV strategy + binding
+- For model artifacts that require ReadWriteMany, if you can't run Ceph, we recommend S3-backed CSI for model pulls with a small local cache (ephemeral) to avoid cross-mount latencies.
+- For checkpoint durability, use blockstore with synchronous replication across the two failure domains for critical artifacts; non-critical artifacts can use eventual replication with lifecycle policies.
+
+3) Eviction handling for large KV caches
+- Use local-ssd with a qosClass Guaranteed for cache pods if possible; configure the kubelet eviction thresholds to prefer evicting best-effort workloads over GPU-serving pods.
+- Expose a cache-compact endpoint in your cache agent so Redwood's runtime can trigger compaction before large-scale eviction events.
+
+4) Node sizing and autoscaling hints
+- Recommend GPU nodes sized for 8 A100s per node (or equivalent) with a separate 2-node hot-spare pool for fast failover. Use ClusterAutoscaler with scale-down disabled for hot-spares.
+
+Attached is a quick CSV with nodepool label/taint examples and example PV binding annotations (nodepool-suggestions.csv). Happy to walk through specifics on the call.
+
+—Karthik
+Karthik Iyer
+Senior Solutions Architect — Redwood Inference
+
+From: Samir Patel <samir.patel@ironforge.com>
+To: lauren_bishop <lauren.bishop@redwood.ai>, karthik_iyer <karthik.iyer@redwood.ai>
+Cc: Grace Hsu <grace.hsu@ironforge.com>, marissa_cole <marissa.cole@redwood.ai>
+Date: Tue, 1 Dec 2026 10:09:00 -08:00
+Subject: Re: Kubernetes locality/topology & retention preflight — IronForge private cluster
+
+Thanks all — call time works. A couple of clarifications after reading your notes: 
+
+- We will run Ceph for RWX across racks (ops prefers it) so we can avoid an S3-only pattern for artifacts.
+- For KV cache: acceptable approach is local-ssd checkpoints + async replication of a compacted index to the peer rack. Target warm-cache restore within 90 minutes.
+- Telemetry: we need TLS + mutual auth for metric/trace ingestion. Retention: Prometheus hot-metrics 30d, long-term metrics to object store 3y.
+- Compliance doc attached (ironforge-compliance.pdf) — contains audit log expectations and approved KMS providers.
+
+On the call, can we also cover: what our ops team needs to run a deterministic failover drill (runbook steps and test checklist)?
+
+Samir
+
+From: lauren_bishop <lauren.bishop@redwood.ai>
+To: Samir Patel <samir.patel@ironforge.com>, marissa_cole <marissa.cole@redwood.ai>, karthik_iyer <karthik.iyer@redwood.ai>, neha_kapoor <neha.kapoor@redwood.ai>
+Date: Thu, 2 Dec 2026 14:47:00 -08:00
+Subject: Re: Kubernetes locality/topology & retention preflight — IronForge private cluster
+
+Thanks Samir — good alignment after today's call. Recap / decisions / next steps: 
+
+Decisions made
+- Ceph chosen for RWX, with synchronous replication for critical checkpoints and async for artifacts.
+- Local-SSD for inference KV cache with 30–60 minute checkpoint cadence and cross-rack replication for a subset of compacted indexes.
+- Nodepool topology: GPU pool (tainted) + infra pool (2 nodes) + hot-spare pool (2 nodes). Autoscaler configured with hot-spare exclusions.
+- Telemetry: mutual-TLS to IronForge Prometheus/Tempo endpoints; retention config: 30d hot, 3y cold for logs/metrics.
+
+Action items
+- Redwood: produce a field-runbook (runbook + failure-drill checklist) and a deployment artifact (kustomize overlays + CSI storage class examples). ETA: 5 business days. (Owner: lauren_bishop)
+- IronForge: provide finalized VLAN/egress ACLs and KMS vendor choice for test KMS integration. (Owner: Samir)
+- Karthik/Neha: prepare nodepool taint/label examples and kubelet eviction baseline settings. (Owner: karthik_iyer, neha_kapoor)
+
+Links & artifacts
+- Shared notes: https://drive.redwood.com/shared/IF-0897/preflight-notes
+- HubSpot opportunity: https://app.hubspot.com/contacts/IF-0897
+
+I'll drop the field-runbook draft into the shared drive and route a PDF for sign-off when ready. If anything above needs correction, reply-all and we'll adjust.
+
+Thanks everyone —
+Lauren
+Director, Private Deployments — Redwood Inference
