@@ -22,10 +22,9 @@ RERANK_TOP_N = 5
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")
 
-# пути к данным
-DATA_DIR = os.getenv("DATA_DIR", "./data")
-CLEAN_DOCS_DIR = os.getenv("CLEAN_DOCS_DIR", "./data/clean_docs")
-INDEX_DIR = os.getenv("INDEX_DIR", "./data/faiss_index")
+# пути к данным (теперь в корне проекта)
+CLEAN_DOCS_DIR = os.getenv("CLEAN_DOCS_DIR", "./clean_docs")
+INDEX_DIR = os.getenv("INDEX_DIR", "./faiss_index")
 LOG_DIR = os.getenv("LOG_DIR", "./logs")
 
 # случайное зерно для воспроизводимости
