@@ -28,6 +28,7 @@ def main():
     docs_dir = Path(CLEAN_DOCS_DIR)
     if not docs_dir.exists():
         print(f"ошибка: папка {CLEAN_DOCS_DIR} не существует.")
+        print("создайте её и поместите туда очищенные .txt файлы.")
         sys.exit(1)
 
     all_chunks = []
