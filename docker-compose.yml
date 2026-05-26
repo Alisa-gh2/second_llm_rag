@@ -16,9 +16,13 @@ services:
     environment:
       OLLAMA_URL: http://ollama:11434
       LLM_MODEL: llama3.2:3b
-      DATA_DIR: /app/data
+      CLEAN_DOCS_DIR: /app/clean_docs
+      INDEX_DIR: /app/faiss_index
+      LOG_DIR: /app/logs
     volumes:
-      - ./data:/app/data
+      # монтируем папки с данными (не копируем их в образ)
+      - ./clean_docs:/app/clean_docs
+      - ./faiss_index:/app/faiss_index
       - ./logs:/app/logs
     depends_on:
       - ollama
