@@ -1,18 +1,14 @@
-# виртуальное окружение и кэш
-__pycache__/
+__pycache__
 *.pyc
-.venv
-venv/
 .env
-
-# папки с данными (не копируем в образ, они будут смонтированы)
-docs/
-clean_docs/
+.venv
+venv
+.git
+.gitignore
+README.md
 faiss_index/
+clean_docs/
 logs/
-
-# ide и системные файлы
+.DS_Store
 .vscode/
 .idea/
-*.swp
-.DS_Store
