@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-скрипт для предварительной индексации документов.
-запускается один раз для создания faiss индекса, bm25 и сохранения чанков.
+однократная индексация документов.
+создаёт faiss.index, chunks.json, bm25.pkl в папке faiss_index/
 """
 
 import os
@@ -10,25 +10,22 @@ import json
 import pickle
 from pathlib import Path
 
-# добавляем путь к корню проекта для импорта конфигурации
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import CLEAN_DOCS_DIR, INDEX_DIR, CHUNK_SIZE, OVERLAP, EMBEDDING_MODEL
-from utils import clean_text, split_into_chunks
+from utils import clean_text, recursive_split
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
 from rank_bm25 import BM25Okapi
 
 def main():
-    print("загрузка модели плотных эмбеддингов...")
+    print("загрузка модели эмбеддингов...")
     dense_model = SentenceTransformer(EMBEDDING_MODEL)
 
-    print(f"чтение документов из {CLEAN_DOCS_DIR}...")
     docs_dir = Path(CLEAN_DOCS_DIR)
     if not docs_dir.exists():
         print(f"ошибка: папка {CLEAN_DOCS_DIR} не существует.")
-        print("создайте её и поместите туда очищенные .txt файлы.")
         sys.exit(1)
 
     all_chunks = []
@@ -36,12 +33,16 @@ def main():
         with open(txt_file, 'r', encoding='utf-8') as f:
             text = f.read()
         text = clean_text(text)
-        chunks = split_into_chunks(text, chunk_size=CHUNK_SIZE, overlap=OVERLAP)
+        chunks = recursive_split(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_SIZE - OVERLAP)  # overlap в символах
         for i, ch in enumerate(chunks):
             all_chunks.append({"id": f"{txt_file.stem}-{i}", "text": ch})
-    print(f"всего создано чанков: {len(all_chunks)}")
+    print(f"всего чанков: {len(all_chunks)}")
 
-    # плотные эмбеддинги
+    if not all_chunks:
+        print("нет чанков, индексация прервана")
+        sys.exit(0)
+
+    # faiss
     chunk_texts = [c["text"] for c in all_chunks]
     embeddings = dense_model.encode(chunk_texts, show_progress_bar=True)
     dim = embeddings.shape[1]
@@ -53,16 +54,16 @@ def main():
     # bm25
     tokenized_chunks = [text.split() for text in chunk_texts]
     bm25 = BM25Okapi(tokenized_chunks)
-    print("bm25 индекс создан.")
+    print("bm25 индекс создан")
 
-    # сохраняем артефакты
+    # сохранение
     os.makedirs(INDEX_DIR, exist_ok=True)
     faiss.write_index(index, os.path.join(INDEX_DIR, "faiss.index"))
     with open(os.path.join(INDEX_DIR, "chunks.json"), 'w', encoding='utf-8') as f:
         json.dump(all_chunks, f, ensure_ascii=False, indent=2)
     with open(os.path.join(INDEX_DIR, "bm25.pkl"), 'wb') as f:
         pickle.dump(bm25, f)
-    print(f"все артефакты сохранены в {INDEX_DIR}")
+    print(f"артефакты сохранены в {INDEX_DIR}")
 
 if __name__ == "__main__":
     main()
