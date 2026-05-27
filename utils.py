@@ -13,8 +13,12 @@ random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 
+
 def clean_text(text: str, lower: bool = False) -> str:
-    """очистка текста: удаление номеров страниц, исправление переносов"""
+    """
+    очистка текста: удаление номеров страниц, исправление переносов, нормализация пробелов.
+    """
+    # паттерны для удаления номеров страниц и подобного
     patterns = [
         r'-\s*\d+\s*-',
         r'page\s*\d+',
@@ -25,16 +29,22 @@ def clean_text(text: str, lower: bool = False) -> str:
     ]
     for pat in patterns:
         text = re.sub(pat, ' ', text, flags=re.IGNORECASE)
+    
+    # склеиваем слова, разорванные переносом строки
     text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
+    
+    # убираем лишние пробелы
     text = re.sub(r'\s+', ' ', text)
     text = text.strip()
+    
     if lower:
         text = text.lower()
     return text
 
+
 def recursive_split(text: str, chunk_size: int = 512, chunk_overlap: int = 256, separators: list = None) -> list:
     """
-    разбивает текст на перекрывающиеся чанки, ища разделители в порядке приоритета
+    разбивает текст на перекрывающиеся чанки, ища разделители в порядке приоритета.
     """
     if separators is None:
         separators = ["\n\n", "\n", " ", ""]
@@ -61,8 +71,11 @@ def recursive_split(text: str, chunk_size: int = 512, chunk_overlap: int = 256, 
             break
     return chunks
 
+
 def setup_logger(log_dir: str, name: str = "rag_api"):
-    """настройка логгера"""
+    """настройка логгера для записи запросов и ответов."""
+    import logging
+    import os
     os.makedirs(log_dir, exist_ok=True)
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
@@ -71,8 +84,9 @@ def setup_logger(log_dir: str, name: str = "rag_api"):
     logger.addHandler(fh)
     return logger
 
+
 def simple_stem(word):
-    """простой стеммер для русского языка — удаляет типичные окончания"""
+    """простой стеммер для русского языка — удаляет типичные окончания."""
     word = word.lower()
     suffixes = ['ая', 'яя', 'ые', 'ие', 'ой', 'ей', 'ую', 'юю', 'ого', 'ему', 'ым', 'им', 'ом', 'ем',
                 'ая', 'яя', 'ие', 'ые', 'ое', 'а', 'я', 'о', 'е', 'и', 'ы', 'у', 'ю', 'ь', 'й']
@@ -84,8 +98,9 @@ def simple_stem(word):
         return word
     return word
 
+
 def normalize_text(text):
-    """извлекает все русские слова из текста и приводит их к стемам"""
+    """извлекает все русские слова из текста и приводит их к стемам."""
     words = re.findall(r'\b[а-яё]+\b', text.lower())
     stems = [simple_stem(w) for w in words]
     return set(stems)
