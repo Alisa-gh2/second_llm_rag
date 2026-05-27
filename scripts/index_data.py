@@ -31,7 +31,7 @@ def main():
         logger.error("папка %s не существует", CLEAN_DOCS_DIR)
         sys.exit(1)
 
-    # создаём все чанки
+    # 1. создаём все чанки (только текст)
     all_chunks = []
     for txt_file in docs_dir.glob("*.txt"):
         with open(txt_file, 'r', encoding='utf-8') as f:
@@ -46,14 +46,14 @@ def main():
         logger.warning("нет чанков, индексация прервана")
         sys.exit(0)
 
-    # определяем размерность эмбеддинга на первом чанке
+    # 2. определяем размерность эмбеддинга на первом чанке
     sample_embedding = dense_model.encode([all_chunks[0]["text"]])[0]
     dim = sample_embedding.shape[0]
-    index = faiss.IndexFlatL2(dim)  # используем L2
+    index = faiss.IndexFlatL2(dim)  # используем L2, как в рабочем коде
     logger.info("размерность эмбеддинга: %d", dim)
 
-    # кодируем чанки батчами
-    batch_size = 32
+    # 3. кодируем чанки батчами
+    batch_size = 64
     total_batches = (len(all_chunks) + batch_size - 1) // batch_size
     logger.info("кодирование чанков батчами по %d (всего батчей: %d)", batch_size, total_batches)
 
@@ -68,7 +68,7 @@ def main():
 
     logger.info("faiss индекс создан, добавлено %d векторов", index.ntotal)
 
-    # сохраняем артефакты
+    # 4. сохраняем артефакты
     os.makedirs(INDEX_DIR, exist_ok=True)
     faiss.write_index(index, os.path.join(INDEX_DIR, "faiss.index"))
     with open(os.path.join(INDEX_DIR, "chunks.json"), 'w', encoding='utf-8') as f:
