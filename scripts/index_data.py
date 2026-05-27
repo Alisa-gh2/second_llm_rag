@@ -10,6 +10,7 @@ import json
 import pickle
 from pathlib import Path
 
+# добавляем путь к корню проекта для импорта конфигурации
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import CLEAN_DOCS_DIR, INDEX_DIR, CHUNK_SIZE, OVERLAP, EMBEDDING_MODEL
@@ -18,6 +19,7 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
 from rank_bm25 import BM25Okapi
+
 
 def main():
     print("загрузка модели эмбеддингов...")
@@ -28,12 +30,13 @@ def main():
         print(f"ошибка: папка {CLEAN_DOCS_DIR} не существует.")
         sys.exit(1)
 
+    # читаем все .txt файлы из папки clean_docs
     all_chunks = []
     for txt_file in docs_dir.glob("*.txt"):
         with open(txt_file, 'r', encoding='utf-8') as f:
             text = f.read()
         text = clean_text(text)
-        chunks = recursive_split(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_SIZE - OVERLAP)  # overlap в символах
+        chunks = recursive_split(text, chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_SIZE - OVERLAP)
         for i, ch in enumerate(chunks):
             all_chunks.append({"id": f"{txt_file.stem}-{i}", "text": ch})
     print(f"всего чанков: {len(all_chunks)}")
@@ -42,7 +45,7 @@ def main():
         print("нет чанков, индексация прервана")
         sys.exit(0)
 
-    # faiss
+    # faiss (dense)
     chunk_texts = [c["text"] for c in all_chunks]
     embeddings = dense_model.encode(chunk_texts, show_progress_bar=True)
     dim = embeddings.shape[1]
@@ -51,12 +54,12 @@ def main():
     index.add(embeddings)
     print(f"faiss индекс создан, размерность {dim}")
 
-    # bm25
+    # bm25 (sparse)
     tokenized_chunks = [text.split() for text in chunk_texts]
     bm25 = BM25Okapi(tokenized_chunks)
     print("bm25 индекс создан")
 
-    # сохранение
+    # сохраняем артефакты
     os.makedirs(INDEX_DIR, exist_ok=True)
     faiss.write_index(index, os.path.join(INDEX_DIR, "faiss.index"))
     with open(os.path.join(INDEX_DIR, "chunks.json"), 'w', encoding='utf-8') as f:
@@ -64,6 +67,7 @@ def main():
     with open(os.path.join(INDEX_DIR, "bm25.pkl"), 'wb') as f:
         pickle.dump(bm25, f)
     print(f"артефакты сохранены в {INDEX_DIR}")
+
 
 if __name__ == "__main__":
     main()
