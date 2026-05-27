@@ -4,7 +4,7 @@
 Проект работает с тремя форматами входных данных для корпуса текстов: `.md`, `.pdf`, `.txt`. 
 Проект реализуется на основе моего [первого проекта по LLM](https://github.com/Alisa-gh2/first_llm_wth_rag) . 
 
-В файле [ANNOTATION_FOR_PROJECT.md](https://github.com/Alisa-gh2/second_llm_rag/blob/main/ANNOTATION.md) находится подробное описание проекта и того, с чего и как мы начинали.
+В файле [ANNOTATION.md](https://github.com/Alisa-gh2/second_llm_rag/blob/main/ANNOTATION.md) находится подробное описание проекта и того, с чего и как мы начинали.
 
 Сами файлы хранятся в [docs/](https://github.com/Alisa-gh2/second_llm_rag/blob/main/docs).
 
