@@ -1,35 +1,35 @@
+# конфигурация проекта
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# настройки чанкинга
+# openrouter
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "z-ai/glm-4.5-air:free"
+
+# пути
+CLEAN_DOCS_DIR = "./clean_docs"
+INDEX_DIR = "./faiss_index"
+LOG_DIR = "./logs"
+
+# чанкинг
 CHUNK_SIZE = 512
 OVERLAP = 256
 
-# модель для плотных эмбеддингов
-EMBEDDING_MODEL = 'paraphrase-multilingual-MiniLM-L12-v2'
-
-# гибридный поиск
-TOP_K = 50
+# поиск
+TOP_K = 15
 RRF_K = 30
-
-# переранжирование
-RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RERANK_TOP_N = 5
 
-# генерация (ollama)
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:3b")
+# эмбеддинги
+EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 
-# пути к данным (теперь в корне проекта)
-CLEAN_DOCS_DIR = os.getenv("CLEAN_DOCS_DIR", "./clean_docs")
-INDEX_DIR = os.getenv("INDEX_DIR", "./faiss_index")
-LOG_DIR = os.getenv("LOG_DIR", "./logs")
-
-# случайное зерно для воспроизводимости
+# воспроизводимость
 SEED = 42
 
-# настройки api
+# api
 API_HOST = "0.0.0.0"
 API_PORT = 8000
