@@ -2,8 +2,9 @@ import os
 import time
 import json
 import pickle
+import requests
 from contextlib import asynccontextmanager
-from typing import List, Dict, Any
+from typing import List, Dict, Tuple
 
 import numpy as np
 import faiss
@@ -11,17 +12,14 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from dotenv import load_dotenv
+from openrouter import OpenRouter
 
 from config import *
-from utils import clean_text, split_into_chunks, setup_logger
+from utils import setup_logger
 
-load_dotenv()
-
-# глобальные переменные для загруженных моделей
+# глобальные переменные
 dense_model = None
 index = None
 bm25 = None
@@ -29,28 +27,25 @@ chunks = []
 rerank_tokenizer = None
 rerank_model = None
 logger = None
+openrouter_client = None
 
-# вспомогательные функции rag-пайплайна
-
+# ---------- загрузка моделей ----------
 def load_dense_model():
-    """загружает модель для получения плотных эмбеддингов."""
     return SentenceTransformer(EMBEDDING_MODEL)
 
 def load_rerank_model():
-    """загружает токенизатор и модель cross-encoder для переранжирования."""
-    tokenizer = AutoTokenizer.from_pretrained(RERANK_MODEL)
-    model = AutoModelForSequenceClassification.from_pretrained(RERANK_MODEL)
+    tokenizer = AutoTokenizer.from_pretrained("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    model = AutoModelForSequenceClassification.from_pretrained("cross-encoder/ms-marco-MiniLM-L-6-v2")
     model.eval()
     return tokenizer, model
 
 def load_index_and_bm25():
-    """загружает сохранённые faiss индекс, bm25 и список чанков из index_dir."""
     index_path = os.path.join(INDEX_DIR, "faiss.index")
     chunks_path = os.path.join(INDEX_DIR, "chunks.json")
     bm25_path = os.path.join(INDEX_DIR, "bm25.pkl")
 
-    if not os.path.exists(index_path) or not os.path.exists(chunks_path) or not os.path.exists(bm25_path):
-        raise RuntimeError("индексы не найдены. сначала запустите scripts/index_data.py")
+    if not (os.path.exists(index_path) and os.path.exists(chunks_path) and os.path.exists(bm25_path)):
+        raise RuntimeError(f"индексы не найдены в {INDEX_DIR}. сначала запустите python scripts/index_data.py")
 
     idx = faiss.read_index(index_path)
     with open(chunks_path, 'r', encoding='utf-8') as f:
@@ -59,24 +54,17 @@ def load_index_and_bm25():
         bm25_obj = pickle.load(f)
     return idx, bm25_obj, chunk_list
 
-def hybrid_search_rrf(query: str, top_k: int = TOP_K, k_rrf: int = RRF_K):
-    """
-    гибридный поиск: dense (faiss) + bm25 с объединением через reciprocal rank fusion.
-    возвращает список кортежей (chunk, score).
-    """
-    # плотный поиск
+# ---------- поиск и ранжирование ----------
+def hybrid_search_rrf(query: str, top_k: int = TOP_K, k_rrf: int = RRF_K) -> List[Tuple[Dict, float]]:
     q_emb = dense_model.encode([query])
     faiss.normalize_L2(q_emb)
     dense_scores, dense_indices = index.search(q_emb, top_k)
     dense_ranks = {int(idx): rank+1 for rank, idx in enumerate(dense_indices[0]) if idx != -1}
 
-    # bm25 поиск
-    tokenized_query = query.split()
-    bm25_scores = bm25.get_scores(tokenized_query)
+    bm25_scores = bm25.get_scores(query.split())
     bm25_top_indices = np.argsort(bm25_scores)[-top_k:][::-1]
     bm25_ranks = {int(idx): rank+1 for rank, idx in enumerate(bm25_top_indices)}
 
-    # rrf слияние
     rrf_scores = {}
     for idx, rank in dense_ranks.items():
         rrf_scores[idx] = 1 / (k_rrf + rank)
@@ -86,11 +74,9 @@ def hybrid_search_rrf(query: str, top_k: int = TOP_K, k_rrf: int = RRF_K):
     sorted_indices = sorted(rrf_scores.keys(), key=lambda i: rrf_scores[i], reverse=True)
     return [(chunks[idx], rrf_scores[idx]) for idx in sorted_indices[:top_k]]
 
-def rerank(query: str, candidates_with_scores: List[tuple], top_n: int = RERANK_TOP_N):
-    """
-    переранжирование кандидатов с помощью cross-encoder.
-    возвращает список лучших чанков.
-    """
+def rerank(query: str, candidates_with_scores: List[Tuple], top_n: int = RERANK_TOP_N) -> List[Dict]:
+    if not candidates_with_scores:
+        return []
     pairs = [(query, chunk["text"]) for chunk, _ in candidates_with_scores]
     inputs = rerank_tokenizer(pairs, padding=True, truncation=True, return_tensors="pt", max_length=512)
     with torch.no_grad():
@@ -100,14 +86,11 @@ def rerank(query: str, candidates_with_scores: List[tuple], top_n: int = RERANK_
     reranked = sorted(zip(candidates_with_scores, scores), key=lambda x: x[1], reverse=True)
     return [chunk for (chunk, _), _ in reranked[:top_n]]
 
-def generate_answer(query: str, chunks_list: List[Dict], model_name: str = LLM_MODEL) -> str:
-    """
-    генерирует ответ на основе найденных чанков с помощью ollama.
-    """
-    if not chunks_list:
+# ---------- генерация через openrouter ----------
+def generate_answer(query: str, context_chunks: List[Dict]) -> str:
+    if not context_chunks:
         return "не найдено релевантных фрагментов."
-
-    context_text = "\n\n".join([c["text"] for c in chunks_list])
+    context_text = "\n\n".join([c["text"] for c in context_chunks])
     prompt = f"""ты — ассистент, отвечающий строго на основе предоставленного контекста.
 контекст состоит из фрагментов документов. твои шаги:
 1. прочитай внимательно каждый фрагмент.
@@ -123,40 +106,38 @@ def generate_answer(query: str, chunks_list: List[Dict], model_name: str = LLM_M
 
 **ответ:"""
     try:
-        response = requests.post(
-            f"{OLLAMA_URL}/api/generate",
-            json={"model": model_name, "prompt": prompt, "stream": False, "options": {"temperature": 0.0}},
-            timeout=120
+        response = openrouter_client.chat.send(
+            model=OPENROUTER_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=512,
+            temperature=0.05,
         )
-        if response.status_code == 200:
-            return response.json()["response"].strip()
-        else:
-            return f"ошибка api: {response.status_code}"
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"ошибка: {e}"
 
-# lifespan для fastapi (загрузка моделей при старте)
-
+# ---------- lifespan ----------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global dense_model, index, bm25, chunks, rerank_tokenizer, rerank_model, logger
-    # загрузка при старте
+    global dense_model, index, bm25, chunks, rerank_tokenizer, rerank_model, logger, openrouter_client
     logger = setup_logger(LOG_DIR)
     logger.info("запуск rag сервиса...")
-    logger.info("загрузка модели плотных эмбеддингов...")
+    logger.info("загрузка модели эмбеддингов...")
     dense_model = load_dense_model()
     logger.info("загрузка модели переранжирования...")
     rerank_tokenizer, rerank_model = load_rerank_model()
-    logger.info("загрузка faiss индекса и bm25...")
+    logger.info("инициализация клиента openrouter...")
+    openrouter_client = OpenRouter(api_key=OPENROUTER_API_KEY)
+    logger.info("загрузка индексов...")
     index, bm25, chunks = load_index_and_bm25()
-    logger.info("сервис готов.")
+    logger.info(f"загружено {len(chunks)} чанков")
+    logger.info("сервис готов")
     yield
-    logger.info("остановка сервиса.")
+    logger.info("остановка сервиса")
 
 app = FastAPI(title="RAG Service", lifespan=lifespan)
 
-# pydantic модели для запросов/ответов
-
+# ---------- pydantic модели ----------
 class QueryRequest(BaseModel):
     question: str
     top_k: int = TOP_K
@@ -167,20 +148,16 @@ class QueryResponse(BaseModel):
     sources: List[str] = []
     time_taken: float
 
-# эндпоинты
-
+# ---------- эндпоинты ----------
 @app.post("/ask", response_model=QueryResponse)
 async def ask(request: QueryRequest):
-    """
-    основной эндпоинт: принимает вопрос, возвращает ответ и источники.
-    """
     start_time = time.time()
     try:
-        initial_results = hybrid_search_rrf(request.question, top_k=request.top_k)
-        best_chunks = rerank(request.question, initial_results, top_n=RERANK_TOP_N)
+        candidates = hybrid_search_rrf(request.question, top_k=request.top_k)
+        best_chunks = rerank(request.question, candidates, top_n=RERANK_TOP_N)
         answer = generate_answer(request.question, best_chunks)
         sources = [c["text"] for c in best_chunks] if request.include_sources else []
-        logger.info(f"q: {request.question} | a: {answer[:200]} | time: {time.time()-start_time:.2f}s")
+        logger.info(f"q: {request.question[:50]}... | time: {time.time()-start_time:.2f}s")
         return QueryResponse(answer=answer, sources=sources, time_taken=time.time() - start_time)
     except Exception as e:
         logger.error(f"ошибка: {str(e)}")
@@ -188,11 +165,7 @@ async def ask(request: QueryRequest):
 
 @app.get("/health")
 async def health():
-    """
-    эндпоинт для проверки состояния сервера.
-    возвращает статус и информацию о загруженных компонентах.
-    """
-    status = {
+    return {
         "status": "ok",
         "models_loaded": {
             "dense_model": dense_model is not None,
@@ -201,13 +174,5 @@ async def health():
             "bm25": bm25 is not None,
         },
         "num_chunks": len(chunks) if chunks else 0,
-        "ollama_url": OLLAMA_URL,
-        "llm_model": LLM_MODEL,
+        "openrouter_model": OPENROUTER_MODEL,
     }
-    # проверим доступность ollama
-    try:
-        resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        status["ollama_reachable"] = resp.status_code == 200
-    except:
-        status["ollama_reachable"] = False
-    return status
