@@ -34,7 +34,7 @@ def clean_text(text: str, lower: bool = False) -> str:
     return text
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list:
+def chunk_text(text: str, chunk_size: int = 1024, overlap: int = 128) -> list:
     """простое разбиение на чанки с перекрытием (как в рабочем коде)"""
     chunks = []
     start = 0
