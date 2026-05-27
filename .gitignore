@@ -1,11 +1,16 @@
+# python
 __pycache__/
 *.pyc
 .env
 .venv
 venv/
+
+# данные и индексы
 faiss_index/
 clean_docs/*.txt
 logs/
-.DS_Store
+
+# ide
 .vscode/
 .idea/
+*.swp
